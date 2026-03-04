@@ -1,6 +1,7 @@
 import cv2
 import sys
 from core.detector import EnvironmentDetector
+from core.audio import SpatialSonar
 
 def main():
     print("Initializing EnvironmentDetector...")
@@ -17,6 +18,18 @@ def main():
         print("Error: Could not open webcam.")
         sys.exit(1)
         
+    # Get frame dimensions to initialize SpatialSonar
+    ret, frame = cap.read()
+    if not ret:
+        print("Failed to grab initial frame. Exiting...")
+        sys.exit(1)
+        
+    height, width, _ = frame.shape
+    total_area = width * height
+    
+    print("Initializing SpatialSonar...")
+    sonar = SpatialSonar(frame_width=width)
+        
     print("Webcam opened successfully. Press 'q' in the video window to quit.")
     
     while True:
@@ -28,11 +41,19 @@ def main():
         # Analyze the frame
         detections = detector.analyze_frame(frame)
         
-        # Print the detections
+        # Audio feedback for the closest object
         if detections:
-            # Format output for readability
-            detected_items = [f"{d['class_name']} (x-center: {d['x_center']:.1f}, area: {d['area']:.1f})" for d in detections]
-            print(" | ".join(detected_items))
+            # Find the detection with the largest area (closest object)
+            closest_obj = max(detections, key=lambda d: d['area'])
+            
+            # Calculate normalized area (0.0 to 1.0)
+            normalized_area = closest_obj['area'] / total_area
+            
+            # Play spatial audio feedback
+            sonar.play_feedback(closest_obj['x_center'], normalized_area)
+            
+            # Print the closest object for terminal feedback
+            print(f"Closest: {closest_obj['class_name']} (pan: {closest_obj['x_center']:.1f}, prox: {normalized_area:.2f})")
         else:
             print("No objects detected.")
             
