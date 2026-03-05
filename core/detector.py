@@ -29,12 +29,14 @@ class EnvironmentDetector:
                 cls_id = int(box.cls[0].item())
                 class_name = result.names[cls_id]
                 
-                detections.append({
-                    'class_name': class_name,
-                    'bbox': [x1, y1, x2, y2],
-                    'x_center': x_center,
-                    'area': area
-                })
+                # Confidence filter
+                if box.conf[0].item() > 0.6:
+                    detections.append({
+                        'class_name': class_name,
+                        'bbox': [x1, y1, x2, y2],
+                        'x_center': x_center,
+                        'area': area
+                    })
                 
         # Sort based on X-center from left to right
         detections.sort(key=lambda d: d['x_center'])

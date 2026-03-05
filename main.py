@@ -28,7 +28,8 @@ def main():
     total_area = width * height
     
     print("Initializing SpatialSonar...")
-    sonar = SpatialSonar(frame_width=width)
+    sonar = SpatialSonar()
+    sonar.start()
         
     print("Webcam opened successfully. Press 'q' in the video window to quit.")
     
@@ -38,24 +39,34 @@ def main():
             print("Failed to grab frame. Exiting...")
             break
             
+        # Get current frame dimensions
+        frame_height, frame_width = frame.shape[:2]
+        
         # Analyze the frame
         detections = detector.analyze_frame(frame)
         
         # Audio feedback for the closest object
         if detections:
-            # Find the detection with the largest area (closest object)
+            # Find the single detection with the largest area (closest object)
             closest_obj = max(detections, key=lambda d: d['area'])
             
-            # Calculate normalized area (0.0 to 1.0)
-            normalized_area = closest_obj['area'] / total_area
+            # Strict Pan Normalization (-1.0 to 1.0)
+            normalized_pan = (closest_obj['x_center'] / (frame_width / 2.0)) - 1.0
+            normalized_pan = max(-1.0, min(1.0, normalized_pan))
             
-            # Play spatial audio feedback
-            sonar.play_feedback(closest_obj['x_center'], normalized_area)
+            # Area Normalization (0.0 to 1.0)
+            normalized_area = closest_obj['area'] / (frame_width * frame_height)
+            normalized_area = max(0.0, min(1.0, normalized_area))
+            
+            # Update target for continuous spatial audio feedback
+            sonar.update_target(target_pan=normalized_pan, target_area=normalized_area)
             
             # Print the closest object for terminal feedback
-            print(f"Closest: {closest_obj['class_name']} (pan: {closest_obj['x_center']:.1f}, prox: {normalized_area:.2f})")
+            print(f"Closest: {closest_obj['class_name']} (pan: {normalized_pan:.2f}, prox: {normalized_area:.2f})")
         else:
-            print("No objects detected.")
+            print("No objects detected. Idling...")
+            # Send 'idle' values: center pan, and a value that evaluates to 100Hz (area=0.0 means 200Hz, we drop to 0.0 per prompt)
+            sonar.update_target(target_pan=0.0, target_area=0.0)
             
         # We need a small window to capture the 'q' key press using OpenCV
         cv2.imshow('Webcam Feed - Press q to quit', frame)
@@ -64,6 +75,7 @@ def main():
             print("Quitting...")
             break
             
+    sonar.stop()
     cap.release()
     cv2.destroyAllWindows()
 
